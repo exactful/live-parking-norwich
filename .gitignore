@@ -1,0 +1,6 @@
+venv/
+.DS_Store
+.pytest_cache/
+app/live_parking_norwich.egg-info/
+build/
+dist/
