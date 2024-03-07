@@ -8,20 +8,17 @@ from .helpers import XMLDataRetriever, XMLDataParser, CarParkTransformer
 from .structures import CarPark
 
 class LiveParkingNorwich():
-    """
-    Class to retrieve car park data from an XML feed.
+    """Class to retrieve car park data from an XML feed.
 
-    Attributes:
-    - last_updated (datetime): The timestamp of the last data update.
-    - success (bool): A flag indicating the success of the data retrieval process.
-    - error_message (str): A message describing any error encountered during data retrieval.
-    - traceback (list[str]): A list containing the traceback information in case of an error.
+    Properties:
+        last_updated (datetime): The timestamp of the last data update.
+        success (bool): A flag indicating the success of the data retrieval process.
+        error_message (str): A message describing any error encountered during data retrieval.
+        traceback (list[str]): A list containing the traceback information in case of an error.
     """
 
     def __init__(self) -> None:
-        """
-        Initialises a Usage object with default attributes.
-        """
+        """Initialises an object with default attributes."""
         self.__data_retriever = XMLDataRetriever(Config.XML_URL)
         self.__data_parser = XMLDataParser(Config.XML_NAMESPACE, Config.DATE_FORMAT)
         self.__data_transformer = CarParkTransformer()
@@ -33,52 +30,46 @@ class LiveParkingNorwich():
 
     @property
     def last_updated(self) -> datetime:
-        """
-        Getter method for the last_updated attribute.
+        """Getter method for the last_updated attribute.
 
         Returns:
-        - datetime: The timestamp of the last data update.
+            datetime: The timestamp of the last data update.
         """
         return self.__last_updated
 
     @property
     def success(self) -> bool:
-        """
-        Getter method for the success attribute.
+        """Getter method for the success attribute.
 
         Returns:
-        - bool: A flag indicating the success of the data retrieval process.
+            bool: A flag indicating the success of the data retrieval process.
         """
         return self.__success
 
     @property
     def error_message(self) -> str:
-        """
-        Getter method for the error_message attribute.
+        """Getter method for the error_message attribute.
 
         Returns:
-        - str: A message describing any error encountered during data retrieval.
+            str: A message describing any error encountered during data retrieval.
         """
         return self.__error_message
 
     @property
     def traceback(self) -> list[str]:
-        """
-        Getter method for the traceback attribute.
+        """Getter method for the traceback attribute.
 
         Returns:
-        - list[str]: A list containing the traceback information in case of an error.
+            list[str]: A list containing the traceback information in case of an error.
         """
         return self.__traceback
 
     def refresh(self) -> list[CarPark]:
-        """
-        Refreshes the car park data from an XML feed.
+        """Refreshes the car park data from an XML feed.
 
         Returns:
-        - list[CarPark]: A list of CarPark objects representing the car park data.
+            list[CarPark]: A list of CarPark objects representing the car park data.
         """
-
         try:
 
             # Get XML data

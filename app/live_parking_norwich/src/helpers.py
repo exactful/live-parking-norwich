@@ -7,23 +7,20 @@ from re import sub
 from .structures import RawCarPark, CarPark
 
 class XMLDataRetriever():
+    """A class for retrieving XML car park data from a given URL."""
 
     def __init__(self, url) -> None:
-
+        """Initialises an XMLDataRetriever object."""
         self.__url = url
 
     def retrieve_xml_data(self) -> bytes:
-        """
-        Retrieves the XML data from the given URL; internal method.
-
-        Args:
-        - url (str): The URL of the XML feed.
+        """Retrieves the XML car park data from a URL.
 
         Returns:
-        - bytes: The raw XML data.
+            bytes: The raw XML data.
 
         Raises:
-        - URLError: If an error occurs while retrieving the XML data.
+            URLError: If an error occurs while retrieving the XML data.
         """
         try:
             with urlopen(self.__url) as response:
@@ -33,24 +30,23 @@ class XMLDataRetriever():
             raise URLError(f"Failed to retrieve XML data from {self.__url}: {e.reason}")
 
 class XMLDataParser():
+    """A class for parsing XML car park data."""
 
     def __init__(self, namespace, date_format) -> None:
-
+        """Initialises an XMLDataParser object."""
         self.__namespace = namespace
         self.__date_format = date_format
 
-    def parse_xml_data(self, xml_data: bytes) -> list[RawCarPark]:
-        """
-        Parses the raw XML data and extracts car park information; internal method.
+    def parse_xml_data(self, xml: bytes) -> list[RawCarPark]:
+        """Parses the raw XML car park data and extracts car park information.
 
         Args:
-        - xml_data (bytes): The raw XML data.
-        - namespace (str): The XML namespace mapping.
+            xml (bytes): The raw XML data.
 
         Returns:
-        - list[RawCarPark]: A list of named tuples containing the extracted car park data.
+            list[RawCarPark]: A list of named tuples containing the extracted car park data.
         """
-        root = ElementTree.fromstring(xml_data)
+        root = ElementTree.fromstring(xml)
 
         # Get the publication time and convert to datetime
         publication_time = root.find(".//d2lm:publicationTime", self.__namespace).text
@@ -74,16 +70,16 @@ class XMLDataParser():
         return car_park_data, last_updated
 
 class CarParkTransformer():
+    """A class for transforming the extracted car park data."""
 
     def transform_data_to_car_parks(self, car_park_data: list[RawCarPark]) -> list[CarPark]:
-        """
-        Transforms the extracted car park data into a list of CarPark objects; internal method.
+        """Transforms the extracted car park data into a list of CarPark objects.
 
         Args:
-        - car_park_data (list[RawCarPark]): A list of named tuples containing the extracted car park data.
+            car_park_data (list[RawCarPark]): A list of named tuples containing the extracted car park data.
 
         Returns:
-        - list[CarPark]: A list of CarPark objects.
+            list[CarPark]: A list of CarPark objects.
         """
         car_parks = []
 
