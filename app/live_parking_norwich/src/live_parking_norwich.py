@@ -1,14 +1,11 @@
 """Module providing a class to retrieve car park data from an XML feed."""
 
-from urllib.request import urlopen
-from urllib.error import URLError
-from xml.etree import ElementTree
 from datetime import datetime
 from traceback import format_tb
-from re import sub
 
 from .config import Config
-from .structures import RawCarPark, CarPark
+from .helpers import XMLDataRetriever, XMLDataParser, CarParkTransformer
+from .structures import CarPark
 
 class LiveParkingNorwich():
     """
@@ -25,8 +22,10 @@ class LiveParkingNorwich():
         """
         Initialises a Usage object with default attributes.
         """
-        self.__url = Config.XML_URL
-        self.__namespace = Config.XML_NAMESPACE
+        self.__data_retriever = XMLDataRetriever(Config.XML_URL)
+        self.__data_parser = XMLDataParser(Config.XML_NAMESPACE, Config.DATE_FORMAT)
+        self.__data_transformer = CarParkTransformer()
+
         self.__last_updated = None
         self.__success = None
         self.__error_message = None
@@ -72,94 +71,6 @@ class LiveParkingNorwich():
         """
         return self.__traceback
 
-    @staticmethod
-    def _retrieve_xml_data(url) -> bytes:
-        """
-        Retrieves the XML data from the given URL; internal method.
-
-        Args:
-        - url (str): The URL of the XML feed.
-
-        Returns:
-        - bytes: The raw XML data.
-
-        Raises:
-        - URLError: If an error occurs while retrieving the XML data.
-        """
-        try:
-            with urlopen(url) as response:
-                xml_data = response.read()
-                return xml_data
-        except URLError as e:
-            raise URLError(f"Failed to retrieve XML data from {url}: {e.reason}")
-
-    @staticmethod
-    def _parse_xml_data(xml_data: bytes, namespace: str) -> list[RawCarPark]:
-        """
-        Parses the raw XML data and extracts car park information; internal method.
-
-        Args:
-        - xml_data (bytes): The raw XML data.
-        - namespace (str): The XML namespace mapping.
-
-        Returns:
-        - list[RawCarPark]: A list of named tuples containing the extracted car park data.
-        """
-        root = ElementTree.fromstring(xml_data)
-
-        # Get the publication time and convert to datetime
-        publication_time = root.find(".//d2lm:publicationTime", namespace).text
-        last_updated = datetime.strptime(publication_time, Config.DATE_FORMAT)
-
-        car_park_data = []
-
-        # Iterate through each car park
-        for situation in root.findall(".//d2lm:payloadPublication/d2lm:situation", namespace):
-            for situation_record in situation.findall("d2lm:situationRecord", namespace):
-
-                # Extract details
-                identity = situation_record.find("d2lm:carParkIdentity", namespace).text
-                status = situation_record.find("d2lm:carParkStatus", namespace).text
-                occupied_spaces = int(situation_record.find("d2lm:occupiedSpaces", namespace).text)
-                total_capacity = int(situation_record.find("d2lm:totalCapacity", namespace).text)
-                occupancy = float(situation_record.find("d2lm:carParkOccupancy", namespace).text)
-
-                car_park_data.append(RawCarPark(identity, status, occupied_spaces, total_capacity, occupancy))
-
-        return car_park_data, last_updated
-
-    @staticmethod
-    def _transform_data_to_car_parks(car_park_data: list[RawCarPark]) -> list[CarPark]:
-        """
-        Transforms the extracted car park data into a list of CarPark objects; internal method.
-
-        Args:
-        - car_park_data (list[RawCarPark]): A list of named tuples containing the extracted car park data.
-
-        Returns:
-        - list[CarPark]: A list of CarPark objects.
-        """
-        car_parks = []
-
-        for data in car_park_data:
-
-            # Split the identity to capture the code and name
-            identity_parts = data.identity.split(":")
-            code = identity_parts[1] # "CPN0015"
-            name = identity_parts[0] # "Harford, Ipswich Road, Norwich"
-
-            # Fix truncated names with "Nor", "NORW" and "Norwic"
-            name = sub(r'Nor(?:wic)?\b', 'Norwich', name)
-            name = sub(r'NORW\b', 'NORWICH', name)
-
-            # Calc remaining spaces
-            remaining_spaces = data.total_capacity - data.occupied_spaces
-
-            # Create CarPark object and add to list
-            car_parks.append(CarPark(code, name, data.status, data.occupied_spaces, remaining_spaces, data.total_capacity, data.occupancy))
-
-        return car_parks
-
     def refresh(self) -> list[CarPark]:
         """
         Refreshes the car park data from an XML feed.
@@ -171,13 +82,13 @@ class LiveParkingNorwich():
         try:
 
             # Get XML data
-            xml = LiveParkingNorwich._retrieve_xml_data(self.__url)
+            xml = self.__data_retriever.retrieve_xml_data()
 
             # Parse XML data
-            car_park_data, self.__last_updated = LiveParkingNorwich._parse_xml_data(xml, self.__namespace)
+            car_park_data, self.__last_updated = self.__data_parser.parse_xml_data(xml)
 
             # Transform car park data
-            car_parks = LiveParkingNorwich._transform_data_to_car_parks(car_park_data)
+            car_parks = self.__data_transformer.transform_data_to_car_parks(car_park_data)
 
             # Set success
             self.__success = True
