@@ -1,5 +1,25 @@
 """Module containing the CarPark class for representing car park details."""
 
+from typing import NamedTuple
+
+class RawCarPark(NamedTuple):
+    """
+    A named tuple representing the raw data of a car park.
+
+    Attributes:
+    - identity (str): The identity string of the car park, typically containing the name and code.
+    - status (str): The status of the car park, e.g., "enoughSpacesAvailable".
+    - occupied_spaces (int): The number of occupied spaces in the car park.
+    - total_capacity (int): The total capacity of the car park.
+    - occupancy (float): The occupancy rate of the car park, expressed as a percentage.
+    """
+
+    identity: str
+    status: str
+    occupied_spaces: int
+    total_capacity: int
+    occupancy: float
+
 class CarPark:
     """
     A class representing a car park with its details including code, name, status,
@@ -12,12 +32,12 @@ class CarPark:
     - occupied_spaces (int): The number of occupied spaces in the car park.
     - remaining_spaces (int): The number of remaining spaces in the car park.
     - total_capacity (int): The total capacity of the car park.
-    - occupancy (float): The occupancy rate of the car park.
+    - occupancy (float): The occupancy rate of the car park, expressed as a percentage.
     """
 
     def __init__(self, code:str, name:str, status:str, \
                  occupied_spaces:int, remaining_spaces:int, \
-                    total_capacity:int, occupancy:float) -> None:  
+                    total_capacity:int, occupancy:float) -> None:
         """
         Initialises a CarPark object with the provided attributes.
 

@@ -1,13 +1,14 @@
-"""Module providing a function to retrieve car park data from an XML feed."""
+"""Module providing a class to retrieve car park data from an XML feed."""
 
 from urllib.request import urlopen
+from urllib.error import URLError
 from xml.etree import ElementTree
 from datetime import datetime
 from traceback import format_tb
 from re import sub
 
 from .config import Config
-from .carpark import CarPark
+from .structures import RawCarPark, CarPark
 
 class LiveParkingNorwich():
     """
@@ -71,6 +72,94 @@ class LiveParkingNorwich():
         """
         return self.__traceback
 
+    @staticmethod
+    def _retrieve_xml_data(url) -> bytes:
+        """
+        Retrieves the XML data from the given URL; internal method.
+
+        Args:
+        - url (str): The URL of the XML feed.
+
+        Returns:
+        - bytes: The raw XML data.
+
+        Raises:
+        - URLError: If an error occurs while retrieving the XML data.
+        """
+        try:
+            with urlopen(url) as response:
+                xml_data = response.read()
+                return xml_data
+        except URLError as e:
+            raise URLError(f"Failed to retrieve XML data from {url}: {e.reason}")
+
+    @staticmethod
+    def _parse_xml_data(xml_data: bytes, namespace: str) -> list[RawCarPark]:
+        """
+        Parses the raw XML data and extracts car park information; internal method.
+
+        Args:
+        - xml_data (bytes): The raw XML data.
+        - namespace (str): The XML namespace mapping.
+
+        Returns:
+        - list[RawCarPark]: A list of named tuples containing the extracted car park data.
+        """
+        root = ElementTree.fromstring(xml_data)
+
+        # Get the publication time and convert to datetime
+        publication_time = root.find(".//d2lm:publicationTime", namespace).text
+        last_updated = datetime.strptime(publication_time, Config.DATE_FORMAT)
+
+        car_park_data = []
+
+        # Iterate through each car park
+        for situation in root.findall(".//d2lm:payloadPublication/d2lm:situation", namespace):
+            for situation_record in situation.findall("d2lm:situationRecord", namespace):
+
+                # Extract details
+                identity = situation_record.find("d2lm:carParkIdentity", namespace).text
+                status = situation_record.find("d2lm:carParkStatus", namespace).text
+                occupied_spaces = int(situation_record.find("d2lm:occupiedSpaces", namespace).text)
+                total_capacity = int(situation_record.find("d2lm:totalCapacity", namespace).text)
+                occupancy = float(situation_record.find("d2lm:carParkOccupancy", namespace).text)
+
+                car_park_data.append(RawCarPark(identity, status, occupied_spaces, total_capacity, occupancy))
+
+        return car_park_data, last_updated
+
+    @staticmethod
+    def _transform_data_to_car_parks(car_park_data: list[RawCarPark]) -> list[CarPark]:
+        """
+        Transforms the extracted car park data into a list of CarPark objects; internal method.
+
+        Args:
+        - car_park_data (list[RawCarPark]): A list of named tuples containing the extracted car park data.
+
+        Returns:
+        - list[CarPark]: A list of CarPark objects.
+        """
+        car_parks = []
+
+        for data in car_park_data:
+
+            # Split the identity to capture the code and name
+            identity_parts = data.identity.split(":")
+            code = identity_parts[1] # "CPN0015"
+            name = identity_parts[0] # "Harford, Ipswich Road, Norwich"
+
+            # Fix truncated names with "Nor", "NORW" and "Norwic"
+            name = sub(r'Nor(?:wic)?\b', 'Norwich', name)
+            name = sub(r'NORW\b', 'NORWICH', name)
+
+            # Calc remaining spaces
+            remaining_spaces = data.total_capacity - data.occupied_spaces
+
+            # Create CarPark object and add to list
+            car_parks.append(CarPark(code, name, data.status, data.occupied_spaces, remaining_spaces, data.total_capacity, data.occupancy))
+
+        return car_parks
+
     def refresh(self) -> list[CarPark]:
         """
         Refreshes the car park data from an XML feed.
@@ -81,46 +170,14 @@ class LiveParkingNorwich():
 
         try:
 
-            # Open URL
-            with urlopen(self.__url) as response:
+            # Get XML data
+            xml = LiveParkingNorwich._retrieve_xml_data(self.__url)
 
-                # Read XML document and convert to XML tree
-                xml = response.read()
-                root = ElementTree.fromstring(xml)
+            # Parse XML data
+            car_park_data, self.__last_updated = LiveParkingNorwich._parse_xml_data(xml, self.__namespace)
 
-                # Get the publication time and convert to datetime
-                publication_time = root.find(".//d2lm:publicationTime", self.__namespace).text # E.g. 2024-02-10T12:19:24
-                self.__last_updated = datetime.strptime(publication_time, Config.DATE_FORMAT) # 2024-02-10 12:19:24
-
-                # Define data structure hold CarPark() objects
-                car_parks = []
-
-                # Iterate through each car park
-                for situation in root.findall(".//d2lm:payloadPublication/d2lm:situation", self.__namespace):
-
-                    for situation_record in situation.findall("d2lm:situationRecord", self.__namespace):
-
-                        # Extract details
-                        identity = situation_record.find("d2lm:carParkIdentity", self.__namespace).text # E.g. "Harford, Ipswich Road, Norwich:CPN0015"
-                        status = situation_record.find("d2lm:carParkStatus", self.__namespace).text # E.g. "enoughSpacesAvailable"
-                        occupied_spaces = int(situation_record.find("d2lm:occupiedSpaces", self.__namespace).text) # E.g. 128
-                        total_capacity = int(situation_record.find("d2lm:totalCapacity", self.__namespace).text) # E.g. 798
-                        occupancy = float(situation_record.find("d2lm:carParkOccupancy", self.__namespace).text) # E.g. 16.0
-
-                        # Split the identity to capture the code and name
-                        identity_parts = identity.split(":")
-                        code = identity_parts[1] # "CPN0015"
-                        name = identity_parts[0] # "Harford, Ipswich Road, Norwich"
-
-                        # Fix truncated names with "Nor", "NORW" and "Norwic"
-                        name = sub(r'Nor(?:wic)?\b', 'Norwich', name)
-                        name = sub(r'NORW\b', 'NORWICH', name)
-
-                        # Calc remaining spaces
-                        remaining_spaces = total_capacity - occupied_spaces # 670
-
-                        # Add CarPark object to list
-                        car_parks.append(CarPark(code, name, status, occupied_spaces, remaining_spaces, total_capacity, occupancy))
+            # Transform car park data
+            car_parks = LiveParkingNorwich._transform_data_to_car_parks(car_park_data)
 
             # Set success
             self.__success = True
