@@ -23,7 +23,7 @@ class LiveParkingNorwich():
 
     def __init__(self) -> None:
         """
-        Initializes a Usage object with default attributes.
+        Initialises a Usage object with default attributes.
         """
         self.__url = Config.XML_URL
         self.__namespace = Config.XML_NAMESPACE
